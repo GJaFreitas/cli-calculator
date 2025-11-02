@@ -1,0 +1,4 @@
+-Wall -Wextra -Werror
+-L./include
+-I./include
+-lfmt
