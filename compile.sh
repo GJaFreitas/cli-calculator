@@ -13,7 +13,7 @@ HOTCODE_FLAG="-fPIC -shared"
 
 COOLCODE=${SRCS//"$HOTCODE"/}
 
-COMPILER="clang -fcolor-diagnostics"
+COMPILER="clang -fcolor-diagnostics" # -fsanitize=address
 COMPILE_FLAGS="-Wall -Wextra"
 INCLUDES="-Iinclude -lm -lncurses"
 DEBUG_FLAG="-g -DDEBUG"

@@ -1,6 +1,7 @@
 #include "calc.h"
 #include <ncurses.h>
 #include <dlfcn.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
@@ -30,7 +31,7 @@ typedef struct
 	bool		isValid;
 }	hotcode;
 
-ENTRY_POINT(entry_point_stub) { (void)calc_data; return 1; };
+ENTRY_POINT(entry_point_stub) { (void)calc_data; (void)Lexer; return 1; };
 
 internal time_t
 LastModified(const char *filepath)
@@ -50,12 +51,10 @@ LoadCode(void)
 
 	if (!Code)
 	{
-		printf("[LOG]No code yet loaded\n");
 		Code = dlopen(code_bin, RTLD_LAZY);
 	}
 	else
 	{
-		printf("[LOG]Code already loaded, reloading\n");
 		dlclose(Code);
 		Code = dlopen(code_bin, RTLD_LAZY);
 	}
@@ -70,11 +69,28 @@ LoadCode(void)
 
 	if (!Result.isValid)
 	{
-		dprintf(2, "[ERROR]Couldn't load code: %s\n", dlerror());
 		Result.calc_func = entry_point_stub;
+		dprintf(2, "[ERROR]Couldn't load code: %s\n", dlerror());
 	}
 
 	return (Result);
+}
+
+void	*
+LocalAlloc(program_memory *mem, uint64 size)
+{
+	void	*ptr = NULL;
+
+	if (mem->memory_use + size < mem->memory_cap)
+	{
+		ptr = &mem->memory[mem->memory_use];
+		mem->memory_use += size;
+	}
+	else
+	{
+		fprintf(stderr, "[LOG]Yikes, memory cap\n");
+	}
+	return (ptr);
 }
 
 int	main(int argc, char **argv)
@@ -84,24 +100,45 @@ int	main(int argc, char **argv)
 	(void)argv;
 	int	shouldClose = 0;
 	hotcode	code;
-	data		stuff;
 
-	stuff.mem.memory_cap = Kilobytes(16);
-	stuff.mem.memory_use = 0;
-	stuff.mem.memory = (uint8 *) aligned_alloc(sysconf(_SC_PAGESIZE)), stuff.mem.memory_cap);
+	static lexer		Lexer;
+	static data		Data;
 
-	initscr();
-	raw();
-	echo(); // TODO: Is this what i want?
-	keypad(stdscr, TRUE);
+	local_persist program_memory	perm_mem;
+	local_persist program_memory	transient_mem;
+
+	Lexer.mem_transient = &transient_mem;
+	Lexer.mem_permanent = &perm_mem;
+	Data.mem_transient = &transient_mem;
+	Data.mem_permanent = &perm_mem;
+
+	perm_mem.memory_cap = sysconf(_SC_PAGESIZE) * 2;
+	perm_mem.memory_use = 0;
+	perm_mem.memory = (uint8 *) aligned_alloc(sysconf(_SC_PAGESIZE), perm_mem.memory_cap);
+
+	transient_mem.memory_cap = sysconf(_SC_PAGESIZE);
+	transient_mem.memory_use = 0;
+	transient_mem.memory = (uint8 *) aligned_alloc(sysconf(_SC_PAGESIZE), transient_mem.memory_cap);
+
+	Data.in_buffer = LocalAlloc(Data.mem_permanent, 512);
+	Data.out_buffer = LocalAlloc(Data.mem_permanent, 512);
+	Lexer.input = Data.in_buffer;
+
+	// initscr();
+	// raw();
+	// noecho();
+	// keypad(stdscr, TRUE);
 
 	while (!shouldClose)
 	{
 		if (LastModified("./bin/hotcode.so") != code.lastModified)
 			code = LoadCode();
-		shouldClose = code.calc_func(&stuff);
+		shouldClose = code.calc_func(&Data, &Lexer);
 	}
 
-	endwin();
+	free(perm_mem.memory);
+	free(transient_mem.memory);
+
+	// endwin();
 	return 0;
 }

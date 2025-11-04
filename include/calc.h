@@ -18,8 +18,11 @@
 
 #define real32 float
 #define real64 double
+#define float32 float
+#define float64 double
 
 #define uint8	uint8_t
+#define uint16	uint16_t
 #define uint32	uint32_t
 #define uint64	uint64_t
 #define int8	int8_t
@@ -28,7 +31,7 @@
 
 // NOTE: If in debug mode test that thing, if not dont
 #ifdef DEBUG
-#define Assert(Expression) if (!(Expression)) {*(int *)0 = 1;}
+#define Assert(Expression) if (!(Expression)) {printf("%s\n", (char*)0);}
 #else
 #define Assert(Expression)
 #endif
@@ -40,21 +43,119 @@ typedef struct
 	uint64	memory_cap;
 }	program_memory;
 
-enum state
+enum token_type
 {
+	T_OP_BIN,
+	T_OP_PLUSMINUS,
+	T_OP_MULTDIVIDE,
+	T_OP_EXPONENTIAL,
+
+	T_EXPRESSION,
+	T_INTEGER,
+	T_INTEGER_HEX,
+	T_INTEGER_BIN,
+	T_FLOAT,
+	T_UNKNONW
 };
 
 typedef struct
 {
-	program_memory	mem;
+	// NULL terminated strings
+	enum token_type	type;
+	union {
+
+		struct { uint32 size; uint8 *data; } str_value;
+		uint64	integer_value;
+		float32	float_32_value;
+		float64	float_64_value;
+
+	};
+	char	*token_string;
+	uint32	token_size;
+}	token;
+
+typedef struct AST
+{
+	token	*Token;
+	struct AST	*left;
+	struct AST	*right;
+	uint32	precedence; // TODO: ?????? Yes or No????
+}	AST;
+
+typedef struct lexer
+{
+	program_memory	*mem_permanent;
+	program_memory	*mem_transient;
+	AST	*tree;
+	char	*input;
+	uint32	index;
+}	lexer;
+
+#define ADD_FLAG(x, y)		((x) |= (y))
+#define REMOVE_FLAG(x, y)	((x) &= ~(y))
+
+// User hit enter
+#define ENTER_HIT	(1 << 31)
+
+enum state
+{
+	BASE,
+};
+
+typedef struct command_list
+{
+	char	*command;
+	char	*result;
+	struct command_list	*next;
+	struct command_list	*prev;
+}	command_list;
+
+typedef struct
+{
+	program_memory	*mem_permanent;
+	program_memory	*mem_transient;
+
+	command_list	*cmds_list;
+	command_list	*current;
 	uint32	row, col;
-	char	last_char;
+	uint32	shouldClose;
 	char	*in_buffer;
+	uint16	in_index;
 	char	*out_buffer;
+	uint16	out_index;
 
 	enum state	state;
 
+	uint32		flags;
+
 }	data;
 
-#define ENTRY_POINT(name) int name(data *calc_data)
+inline internal bool	IsNum(uint8 c)
+{
+	return (c >= '0' && c <= '9');
+}
+
+inline internal bool	IsSpace(uint8 c)
+{
+	return (c == ' ');
+}
+
+inline internal bool	IsChar(uint8 c)
+{
+	return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+}
+
+inline internal bool	IsOperator(uint8 c)
+{
+	return (c == '+' || c == '*' || c == '-' || c == '<' || c == '>' || c == '/' || c == '$');
+}
+
+inline internal uint32	NextMult8(uint32 num)
+{
+	return ((num + 7) & ~7);
+}
+
+void	*LocalAlloc(program_memory *mem, uint64 size);
+
+#define ENTRY_POINT(name) int name(data *calc_data, lexer *Lexer)
 typedef ENTRY_POINT(entrypoint);
