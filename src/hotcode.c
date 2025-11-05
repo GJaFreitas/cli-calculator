@@ -24,7 +24,7 @@ LocalAlloc(program_memory *mem, uint64 size)
 }
 
 inline internal char *
-GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch, uint32 *token_size)
+GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch)
 {
 	uint32	size = 0;
 	uint32	rounded_size;
@@ -35,7 +35,7 @@ GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch, uint32
 	for (uint32 i = 0; i < size; i++) token_content[i] = stream_ptr[*index + i];
 	token_content[size] = 0;
 	*index += size;
-	*token_size = rounded_size;
+	// TODO: This is probably going away
 	return (token_content);
 }
 
@@ -55,23 +55,24 @@ GetOperatorType(char cur)
 }
 
 internal token *
-GetNextToken(lexer *Lexer, program_memory *scratch)
+_NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 {
 	token	*Token;
+	uint32	idx = Lexer->index;
 
 	Token = LocalAlloc(scratch, sizeof(token));
 
-	while (IsSpace(Lexer->input[Lexer->index])) (Lexer->index)++;
-	if (Lexer->input[Lexer->index] == 0) return NULL;
+	while (IsSpace(Lexer->input[idx])) (idx)++;
+	if (Lexer->input[idx] == 0) return NULL;
 
-	char	cur = Lexer->input[Lexer->index];
+	char	cur = Lexer->input[idx];
 	if (IsNum(cur))
 	{
-		Token->token_string = GetNumber(Lexer->input, &Lexer->index, scratch, &Token->token_size);
+		Token->token_string = GetNumber(Lexer->input, &idx, scratch);
 		// TODO: Of course this is wrong and has to be handled better
 		Token->integer_value = atoi(Token->token_string);
 		// ----------------------------------------------------------
-		switch (Lexer->input[Lexer->index])
+		switch (Lexer->input[idx])
 		{
 			case 'b': Token->type = T_INTEGER_BIN; break;
 			case 'h': Token->type = T_INTEGER_HEX; break;
@@ -81,21 +82,69 @@ GetNextToken(lexer *Lexer, program_memory *scratch)
 	}
 	else if (IsOperator(cur))
 	{
-		if (cur == '*' && Lexer->input[Lexer->index + 1] == '*') {
+		if (cur == '*' && Lexer->input[idx + 1] == '*') {
 			cur = '$'; // Using this for exponentiation
-			Lexer->index++;
+			idx++;
 		}
 		Token->type = GetOperatorType(cur);
 		Token->token_string = LocalAlloc(scratch, 1 + 1);
 		Token->token_string[0] = cur;
 		Token->token_string[1] = 0;
-		(Lexer->index)++;
+		(idx)++;
 	}
 	else if (IsChar(cur))
 	{
 	}
 
+	*token_size = idx - Lexer->index;
+
 	return (Token);
+}
+
+internal token *
+PeekNextToken(lexer *Lexer, program_memory *mem)
+{
+	uint32	token_size;
+	token	*tok;
+
+	tok = _NextToken(Lexer, mem, &token_size);
+	Lexer->peeked.size = token_size;
+	Lexer->peeked.tok = tok;
+	return (tok);
+}
+
+internal token *
+ConsumePeekedToken(lexer *Lexer)
+{
+	token	*tok;
+	uint32	token_size;
+
+	tok = Lexer->peeked.tok;
+	token_size = Lexer->peeked.size;
+	Lexer->peeked.size = 0;
+	Lexer->peeked.tok = 0;
+
+	Lexer->index += token_size;
+	return (tok);
+}
+
+internal token *
+ConsumeNextToken(lexer *Lexer, program_memory *mem)
+{
+	token	*tok;
+	uint32	token_size;
+
+	if (Lexer->peeked.tok) {
+		tok = Lexer->peeked.tok;
+		token_size = Lexer->peeked.size;
+		Lexer->peeked.size = 0;
+		Lexer->peeked.tok = 0;
+	} else {
+		tok = _NextToken(Lexer, mem, &token_size);
+	}
+
+	Lexer->index += token_size;
+	return (tok);
 }
 
 inline internal AST *
@@ -116,7 +165,7 @@ GetPrecedence(token *tok)
 	char	operator = tok->token_string[0];
 	int i = 0;
 
-	if (!IsOperator(operator)) return 0;
+	if (!IsOperator(operator)) return 515;
 	for (; precedence_table[i] != operator; i++);
 	return (i+1);
 }
@@ -129,24 +178,7 @@ MakeBinaryTree(AST *left, AST *op, AST *right)
 	return (op);
 }
 
-internal AST *
-ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
-{
-	token	*next = GetNextToken(Lexer, Lexer->mem_transient);
-
-	if (next == NULL)
-		return (left);
-	uint32	next_prec = GetPrecedence(next);
-
-	if (next_prec <= min_prec)
-	{
-		return left;
-	} else {
-		AST *right = ParseExpression(Lexer, next_prec);
-		return MakeBinaryTree(left, ASTAttachToken(next, Lexer->mem_transient), right);
-	}
-}
-
+// TODO: Two different tokens that have the value 2 are considered equal
 inline internal bool
 TokenEqual(token *tok1, token *tok2)
 {
@@ -154,7 +186,29 @@ TokenEqual(token *tok1, token *tok2)
 
 	while (tok1->token_string[i] == tok2->token_string[i] && tok1->token_string[i] != 0)
 		i++;
-	return (tok2->token_string[i] == 0);
+	return (tok2->token_string[i] == tok1->token_string[i]);
+}
+
+internal AST *
+ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
+{
+	token	*next = PeekNextToken(Lexer, Lexer->mem_transient);
+
+	if (next == NULL)
+		return (left);
+	uint32	next_prec = GetPrecedence(next);
+
+	if (next_prec < min_prec)
+	{
+		return left;
+	} else {
+		AST *right = ParseExpression(Lexer, next_prec);
+		return MakeBinaryTree(
+			left,
+			ASTAttachToken(ConsumePeekedToken(Lexer), Lexer->mem_transient),
+			right
+		);
+	}
 }
 
 internal AST *
@@ -165,7 +219,7 @@ ParseExpression(lexer *Lexer, uint32 min_prec)
 
 	if (Lexer->input[Lexer->index] == 0)
 		return NULL;
-	left = ASTAttachToken(GetNextToken(Lexer, Lexer->mem_transient), Lexer->mem_transient);
+	left = ASTAttachToken(ConsumeNextToken(Lexer, Lexer->mem_transient), Lexer->mem_transient);
 
 	while (true)
 	{

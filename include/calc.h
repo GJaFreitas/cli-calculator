@@ -70,7 +70,6 @@ typedef struct
 
 	};
 	char	*token_string;
-	uint32	token_size;
 }	token;
 
 static inline bool	OpToken(token *Token)
@@ -100,6 +99,7 @@ typedef struct lexer
 	program_memory	*mem_permanent;
 	program_memory	*mem_transient;
 	AST	*tree;
+	struct {token	*tok; uint32	size;} peeked;
 	char	*input;
 	uint32	index;
 }	lexer;
