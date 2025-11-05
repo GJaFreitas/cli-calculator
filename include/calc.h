@@ -67,19 +67,32 @@ typedef struct
 		struct { uint32 size; uint8 *data; } str_value;
 		uint64	integer_value;
 		float32	float_32_value;
-		float64	float_64_value;
 
 	};
 	char	*token_string;
 	uint32	token_size;
 }	token;
 
+static inline bool	OpToken(token *Token)
+{
+	return (Token->type < T_EXPRESSION);
+}
+
+// NOTE: In reality i should just use floats everywhere
+// to make this easier on myself with pretty much 0
+// repercussions but since this is basically my 'intro to
+// compiler design' ill keep the int and float distinction
+typedef union
+{
+	uint64	int_solution;
+	real32	float_32_solution;
+}	solution;
+
 typedef struct AST
 {
 	token	*Token;
 	struct AST	*left;
 	struct AST	*right;
-	uint32	precedence; // TODO: ?????? Yes or No????
 }	AST;
 
 typedef struct lexer

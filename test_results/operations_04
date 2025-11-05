@@ -1,0 +1,6 @@
+Input: "1 * 2"
+Expected: 2
+Got: 
+stderr: 
+Exit code: -11
+Command: ./bin/calc '"1 * 2"'

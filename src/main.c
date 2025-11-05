@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -96,7 +97,11 @@ LocalAlloc(program_memory *mem, uint64 size)
 int	main(int argc, char **argv)
 {
 	// Parse argv maybe make a -h command
-	(void)argc;
+	if (argc < 2)
+	{
+		printf("No argv\n");
+		return 1;
+	}
 	(void)argv;
 	int	shouldClose = 0;
 	hotcode	code;
@@ -123,6 +128,10 @@ int	main(int argc, char **argv)
 	Data.in_buffer = LocalAlloc(Data.mem_permanent, 512);
 	Data.out_buffer = LocalAlloc(Data.mem_permanent, 512);
 	Lexer.input = Data.in_buffer;
+
+
+	// For unit tests
+	strcpy(Lexer.input, argv[1]);
 
 	// initscr();
 	// raw();
