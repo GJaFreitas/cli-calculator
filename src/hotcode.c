@@ -420,12 +420,13 @@ ParseFull(lexer *Lexer)
 	return (output);
 }
 
-internal void
+internal int32
 ProccessCommand(data *calc_data, char *str)
 {
 	REMOVE_FLAG(calc_data->flags, ENTER_HIT);
 	if (!strncmp(str, "quit", 4))
 		calc_data->shouldClose = 1;
+	return (calc_data->shouldClose);
 
 	// calc_data->row += 2;
 
@@ -436,9 +437,11 @@ ProccessCommand(data *calc_data, char *str)
 ENTRY_POINT(calc)
 {
 
-	// fgets(Lexer->input, 512, stdin);
+	fgets(Lexer->input, 512, stdin);
+	Lexer->input[strlen(Lexer->input) - 1] = 0;
 
-	ProccessCommand(calc_data, Lexer->input);
+	if (ProccessCommand(calc_data, Lexer->input))
+		return (calc_data->shouldClose);
 	// Assert(calc_data->in_index < 512);
 	//
 	// if (ch == '\n')
@@ -456,9 +459,6 @@ ENTRY_POINT(calc)
 
 	calc_data->out_buffer = ParseFull(Lexer);
 	// print_tree(Lexer->tree);
-
-	calc_data->shouldClose = 1;
-	// TODO: Lexer has to be reset at some point lol
 
 	// if (calc_data->flags & ENTER_HIT) ProccessCommand(calc_data);
 
