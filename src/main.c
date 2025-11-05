@@ -132,6 +132,7 @@ int	main(int argc, char **argv)
 
 	// For unit tests
 	strcpy(Lexer.input, argv[1]);
+	// strcpy(Lexer.input, "2 + 2 + 2 + 2");
 
 	// initscr();
 	// raw();

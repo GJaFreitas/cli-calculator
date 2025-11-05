@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-internal AST * ParseExpression(lexer *Lexer, uint32 min_prec);
 
 void	*
 LocalAlloc(program_memory *mem, uint64 size)
@@ -35,7 +34,7 @@ GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch)
 	for (uint32 i = 0; i < size; i++) token_content[i] = stream_ptr[*index + i];
 	token_content[size] = 0;
 	*index += size;
-	// TODO: This is probably going away
+	Assert(size != 0);
 	return (token_content);
 }
 
@@ -96,7 +95,9 @@ _NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 	{
 	}
 
+	Token->id = idx;
 	*token_size = idx - Lexer->index;
+	Assert(idx != Lexer->index);
 
 	return (Token);
 }
@@ -104,12 +105,17 @@ _NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 internal token *
 PeekNextToken(lexer *Lexer, program_memory *mem)
 {
+	token_info	stack_entry;
 	uint32	token_size;
 	token	*tok;
 
 	tok = _NextToken(Lexer, mem, &token_size);
-	Lexer->peeked.size = token_size;
-	Lexer->peeked.tok = tok;
+	if (tok == NULL) return NULL;
+	Lexer->index += token_size;
+	stack_entry.tok = tok;
+	stack_entry.size = token_size;
+	Lexer->peek.token_stack[Lexer->peek.stack_idx] = stack_entry;
+	Lexer->peek.stack_idx++;
 	return (tok);
 }
 
@@ -117,14 +123,11 @@ internal token *
 ConsumePeekedToken(lexer *Lexer)
 {
 	token	*tok;
-	uint32	token_size;
-
-	tok = Lexer->peeked.tok;
-	token_size = Lexer->peeked.size;
-	Lexer->peeked.size = 0;
-	Lexer->peeked.tok = 0;
-
-	Lexer->index += token_size;
+	// NOTE: Of course the stack idx is pointing to the next unused stack entry
+	int32	index = Lexer->peek.stack_idx - 1;
+	
+	tok = Lexer->peek.token_stack[index].tok;
+	Lexer->peek.stack_idx--;
 	return (tok);
 }
 
@@ -134,15 +137,7 @@ ConsumeNextToken(lexer *Lexer, program_memory *mem)
 	token	*tok;
 	uint32	token_size;
 
-	if (Lexer->peeked.tok) {
-		tok = Lexer->peeked.tok;
-		token_size = Lexer->peeked.size;
-		Lexer->peeked.size = 0;
-		Lexer->peeked.tok = 0;
-	} else {
-		tok = _NextToken(Lexer, mem, &token_size);
-	}
-
+	tok = _NextToken(Lexer, mem, &token_size);
 	Lexer->index += token_size;
 	return (tok);
 }
@@ -157,7 +152,7 @@ ASTAttachToken(token *Token, program_memory *mem_arena)
 	return (node);
 }
 
-global_var uint8	precedence_table[] = {'+', '-', '*', '$'};
+global_var uint8	precedence_table[] = {'+', '-', '*', '/', '$'};
 
 inline internal uint32
 GetPrecedence(token *tok)
@@ -165,7 +160,7 @@ GetPrecedence(token *tok)
 	char	operator = tok->token_string[0];
 	int i = 0;
 
-	if (!IsOperator(operator)) return 515;
+	if (!IsOperator(operator)) return 0;
 	for (; precedence_table[i] != operator; i++);
 	return (i+1);
 }
@@ -178,16 +173,7 @@ MakeBinaryTree(AST *left, AST *op, AST *right)
 	return (op);
 }
 
-// TODO: Two different tokens that have the value 2 are considered equal
-inline internal bool
-TokenEqual(token *tok1, token *tok2)
-{
-	int	i = 0;
-
-	while (tok1->token_string[i] == tok2->token_string[i] && tok1->token_string[i] != 0)
-		i++;
-	return (tok2->token_string[i] == tok1->token_string[i]);
-}
+internal AST * ParseExpression(lexer *Lexer, uint32 min_prec);
 
 internal AST *
 ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
@@ -195,11 +181,17 @@ ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
 	token	*next = PeekNextToken(Lexer, Lexer->mem_transient);
 
 	if (next == NULL)
+	{
+		ADD_FLAG(Lexer->flags, LEXER_FINISHED);
 		return (left);
+	}
 	uint32	next_prec = GetPrecedence(next);
 
 	if (next_prec < min_prec)
 	{
+		// TODO: ?????????????????
+		Lexer->index -= Lexer->peek.token_stack[Lexer->peek.stack_idx - 1].size;
+		Lexer->peek.stack_idx--;
 		return left;
 	} else {
 		AST *right = ParseExpression(Lexer, next_prec);
@@ -224,7 +216,8 @@ ParseExpression(lexer *Lexer, uint32 min_prec)
 	while (true)
 	{
 		node = ParseIncreasingPrecedence(Lexer, left, min_prec);
-		if (node && TokenEqual(node->Token, left->Token)) break ;
+		if (node && (node->Token->id == left->Token->id)) break ;
+		if (Lexer->flags & LEXER_FINISHED) break ;
 		left = node;
 	}
 	return (node);
@@ -301,6 +294,7 @@ MulDiv(char op, token *l, token *r)
 		// NOTE: Since division doesnt guarantee an int return division also poisons all
 		// results going forward into being floats
 		default: sol.int_solution = (l->integer_value * r->integer_value); break ;
+
 		case T_FLOAT:
 		switch (op)
 		{
@@ -329,7 +323,7 @@ Exponential(token *l, token *r)
 				return (sol);
 			}
 			sol.int_solution = l->integer_value;
-			for (uint64 i = 1; i < r->integer_value; i++)
+			for (int64 i = 1; i < r->integer_value; i++)
 				sol.int_solution *= sol.int_solution;
 			break ;
 		case T_FLOAT:
@@ -356,6 +350,8 @@ DoOperation(token *op, token *l, token *r)
 
 	if (l->type == T_FLOAT || r->type == T_FLOAT || op->token_string[0] == '/')
 	{
+		if (l->type != T_FLOAT) l->float_32_value = (float32)l->integer_value;
+		if (r->type != T_FLOAT) r->float_32_value = (float32)r->integer_value;
 		l->type = T_FLOAT;
 		r->type = T_FLOAT;
 	}
@@ -397,10 +393,10 @@ Solver(AST *root, program_memory *mem)
 		return (ASTAttachToken(sol, mem));
 	}
 
-	// HACK: Clear memory loss here but its okay because arena allocator resets
+	// HACK: Clear memory leak here but its okay because arena allocator resets
 	if (root->left->Token->type < T_EXPRESSION)
 		root->left = Solver(root->left, mem);
-	else
+	if (root->right->Token->type < T_EXPRESSION)
 		root->right = Solver(root->right, mem);
 	*sol = DoOperation(root->Token, root->left->Token, root->right->Token);
 	return (ASTAttachToken(sol, mem));
@@ -416,7 +412,11 @@ ParseFull(lexer *Lexer)
 	Lexer->tree = ParseExpression(Lexer, 0);
 	sol_token = *Solver(Lexer->tree, Lexer->mem_transient)->Token;
 	Solution.int_solution = sol_token.integer_value;
-	printf("%lu\n", Solution.int_solution);
+	Solution.float_32_solution = sol_token.float_32_value;
+	if (sol_token.type == T_FLOAT)
+		printf("%.2f\n", Solution.float_32_solution);
+	else
+		printf("%ld\n", Solution.int_solution);
 	return (output);
 }
 
@@ -432,40 +432,6 @@ ProccessCommand(data *calc_data, char *str)
 	// while (calc_data->in_index)
 	// 	calc_data->in_buffer[--calc_data->in_index] = 0;
 }
-
-// internal void
-// print_tree(AST *root)
-// {
-// 	AST	*num, *op;
-// 	token	*tok;
-//
-// 	op = root;
-// 	for (;;)
-// 	{
-// 		tok = op->Token;
-// 		printf("%s", tok->token_string);
-// 		if (!OpToken(op->left->Token) && !OpToken(op->right->Token))
-// 		{
-// 			tok = op->right->Token;
-// 			printf("%s", tok->token_string);
-// 			tok = op->left->Token;
-// 			printf("%s", tok->token_string);
-// 			break ;
-// 		}
-// 		else if (OpToken(op->left->Token))
-// 		{
-// 			num = op->right;
-// 			op = op->left;
-// 		} else {
-// 			num = op->left;
-// 			op = op->right;
-// 		}
-// 		tok = num->Token;
-// 		printf("%s", tok->token_string);
-// 		if (op == NULL) break ;
-// 	}
-// 	printf("\n");
-// }
 
 ENTRY_POINT(calc)
 {

@@ -65,11 +65,12 @@ typedef struct
 	union {
 
 		struct { uint32 size; uint8 *data; } str_value;
-		uint64	integer_value;
+		int64	integer_value;
 		float32	float_32_value;
 
 	};
 	char	*token_string;
+	uint32	id;
 }	token;
 
 static inline bool	OpToken(token *Token)
@@ -83,7 +84,7 @@ static inline bool	OpToken(token *Token)
 // compiler design' ill keep the int and float distinction
 typedef union
 {
-	uint64	int_solution;
+	int64	int_solution;
 	real32	float_32_solution;
 }	solution;
 
@@ -94,14 +95,30 @@ typedef struct AST
 	struct AST	*right;
 }	AST;
 
+
+typedef struct
+{
+	uint32	size;
+	token	*tok;
+}	token_info;
+
+typedef struct token_stack
+{
+	uint32		stack_idx;
+	token_info	token_stack[32];
+}	token_stack;
+
+#define LEXER_FINISHED	(1 << 31)
+
 typedef struct lexer
 {
+	int32	flags;
+	uint32	index;
 	program_memory	*mem_permanent;
 	program_memory	*mem_transient;
 	AST	*tree;
-	struct {token	*tok; uint32	size;} peeked;
 	char	*input;
-	uint32	index;
+	token_stack	peek;
 }	lexer;
 
 #define ADD_FLAG(x, y)		((x) |= (y))
