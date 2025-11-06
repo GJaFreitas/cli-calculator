@@ -216,6 +216,9 @@ ParseExpression(lexer *Lexer, uint32 min_prec)
 	while (true)
 	{
 		node = ParseIncreasingPrecedence(Lexer, left, min_prec);
+		// FIX: Input like "1 + " segfaults here, "1 +" doesnt so that is the issue
+		// Possible fix is just not letting the space be there by parsing but that sounds
+		// like ducktape over a gunshot wound
 		if (node && (node->Token->id == left->Token->id)) break ;
 		if (Lexer->flags & LEXER_FINISHED) break ;
 		left = node;
@@ -384,11 +387,15 @@ SolverPartialTreeNoOp(AST *root, token *sol, program_memory *mem)
 	return (ASTAttachToken(sol, mem));
 }
 
+internal AST * Solver(AST *root, program_memory *mem);
+
 inline internal AST *
 SolverPartialTreeWithOp(AST *root, token *sol, program_memory *mem)
 {
 	if (root->left)
 	{
+		if (root->left->Token->type < T_EXPRESSION)
+			return (Solver(root->left, mem));
 		switch (root->left->Token->type)
 		{
 			case T_FLOAT: sol->float_32_value = root->left->Token->float_32_value;
@@ -398,6 +405,8 @@ SolverPartialTreeWithOp(AST *root, token *sol, program_memory *mem)
 		sol->type = root->left->Token->type;
 		return (ASTAttachToken(sol, mem));
 	} else {
+		if (root->right->Token->type < T_EXPRESSION)
+			return (Solver(root->right, mem));
 		switch (root->right->Token->type)
 		{
 			case T_FLOAT: sol->float_32_value = root->right->Token->float_32_value;
