@@ -96,9 +96,12 @@ LocalAlloc(program_memory *mem, uint64 size)
 
 int	main(int argc, char **argv)
 {
-	// Parse argv maybe make a -h command
+	if (argc < 2)
+	{
+		printf("No argv\n");
+		return 1;
+	}
 	(void)argv;
-	(void)argc;
 	int	shouldClose = 0;
 	hotcode	code;
 
@@ -108,6 +111,8 @@ int	main(int argc, char **argv)
 	local_persist program_memory	perm_mem;
 	local_persist program_memory	transient_mem;
 
+	Lexer.mem_transient = &transient_mem;
+	Lexer.mem_permanent = &perm_mem;
 	Data.mem_transient = &transient_mem;
 	Data.mem_permanent = &perm_mem;
 
@@ -121,11 +126,11 @@ int	main(int argc, char **argv)
 
 	Data.in_buffer = LocalAlloc(Data.mem_permanent, 512);
 	Data.out_buffer = LocalAlloc(Data.mem_permanent, 512);
+	Lexer.input = Data.in_buffer;
 
 
 	// For unit tests
-	// strcpy(Lexer.input, argv[1]);
-	// strcpy(Lexer.input, "2 + 2 + 2 + 2");
+	strcpy(Lexer.input, argv[1]);
 
 	// initscr();
 	// raw();
@@ -135,13 +140,14 @@ int	main(int argc, char **argv)
 	while (!shouldClose)
 	{
 		transient_mem.memory_use = 0;
-		memset(&Lexer, 0, sizeof(lexer));
 		Lexer.input = Data.in_buffer;
 		Lexer.mem_transient = &transient_mem;
 		Lexer.mem_permanent = &perm_mem;
 		if (LastModified("./bin/hotcode.so") != code.lastModified)
 			code = LoadCode();
 		shouldClose = code.calc_func(&Data, &Lexer);
+		if (!shouldClose)
+			memset(&Lexer, 0, sizeof(lexer));
 	}
 
 	free(perm_mem.memory);

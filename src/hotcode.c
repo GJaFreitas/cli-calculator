@@ -371,6 +371,44 @@ DoOperation(token *op, token *l, token *r)
 	return (result);
 }
 
+inline internal AST *
+SolverPartialTreeNoOp(AST *root, token *sol, program_memory *mem)
+{
+	switch (root->Token->type)
+	{
+		case T_FLOAT: sol->float_32_value = root->Token->float_32_value;
+			break ;
+		default : sol->integer_value = root->Token->integer_value;
+	}
+	sol->type = root->Token->type;
+	return (ASTAttachToken(sol, mem));
+}
+
+inline internal AST *
+SolverPartialTreeWithOp(AST *root, token *sol, program_memory *mem)
+{
+	if (root->left)
+	{
+		switch (root->left->Token->type)
+		{
+			case T_FLOAT: sol->float_32_value = root->left->Token->float_32_value;
+				break ;
+			default : sol->integer_value = root->left->Token->integer_value;
+		}
+		sol->type = root->left->Token->type;
+		return (ASTAttachToken(sol, mem));
+	} else {
+		switch (root->right->Token->type)
+		{
+			case T_FLOAT: sol->float_32_value = root->right->Token->float_32_value;
+				break ;
+			default : sol->integer_value = root->right->Token->integer_value;
+		}
+		sol->type = root->right->Token->type;
+		return (ASTAttachToken(sol, mem));
+	}
+}
+
 // Neither child is an operation
 inline internal bool
 SolverBaseCase(AST *node)
@@ -382,7 +420,16 @@ internal AST *
 Solver(AST *root, program_memory *mem)
 {
 	token	*sol = LocalAlloc(mem, sizeof(token));
-	// Base case
+
+	if (root->Token->type > T_EXPRESSION) {
+		return SolverPartialTreeNoOp(root, sol, mem);
+	}
+
+	// 1 + _
+	if (root->Token->type < T_EXPRESSION && (!root->left || !root->right)) {
+		return SolverPartialTreeWithOp(root, sol, mem);
+	}
+
 	if (SolverBaseCase(root))
 	{
 		*sol = DoOperation(
@@ -437,8 +484,8 @@ ProccessCommand(data *calc_data, char *str)
 ENTRY_POINT(calc)
 {
 
-	fgets(Lexer->input, 512, stdin);
-	Lexer->input[strlen(Lexer->input) - 1] = 0;
+	// fgets(Lexer->input, 512, stdin);
+	// Lexer->input[strlen(Lexer->input) - 1] = 0;
 
 	if (ProccessCommand(calc_data, Lexer->input))
 		return (calc_data->shouldClose);
@@ -458,6 +505,7 @@ ENTRY_POINT(calc)
 	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
 
 	calc_data->out_buffer = ParseFull(Lexer);
+	calc_data->shouldClose = 1;
 	// print_tree(Lexer->tree);
 
 	// if (calc_data->flags & ENTER_HIT) ProccessCommand(calc_data);
