@@ -85,6 +85,11 @@ _NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 			cur = '$'; // Using this for exponentiation
 			idx++;
 		}
+		if (IsOperator(Lexer->input[idx + 1]))
+		{
+			ADD_FLAG(Lexer->flags, LEXER_SYNTAX_ERROR);
+			return (NULL);
+		}
 		Token->type = GetOperatorType(cur);
 		Token->token_string = LocalAlloc(scratch, 1 + 1);
 		Token->token_string[0] = cur;
@@ -93,6 +98,11 @@ _NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 	}
 	else if (IsChar(cur))
 	{
+		Assert(!IsChar(cur));
+	}
+	else
+	{
+		return (NULL);
 	}
 
 	Token->id = idx;
@@ -180,7 +190,7 @@ ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
 {
 	token	*next = PeekNextToken(Lexer, Lexer->mem_transient);
 
-	if (next == NULL)
+	if (next == NULL || (Lexer->flags & LEXER_SYNTAX_ERROR))
 	{
 		ADD_FLAG(Lexer->flags, LEXER_FINISHED);
 		return (left);
@@ -189,7 +199,6 @@ ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
 
 	if (next_prec < min_prec)
 	{
-		// TODO: ?????????????????
 		Lexer->index -= Lexer->peek.token_stack[Lexer->peek.stack_idx - 1].size;
 		Lexer->peek.stack_idx--;
 		return left;
@@ -209,18 +218,15 @@ ParseExpression(lexer *Lexer, uint32 min_prec)
 	AST	*node;
 	AST	*left;
 
-	if (Lexer->input[Lexer->index] == 0)
+	if (Lexer->flags & LEXER_FINISHED)
 		return NULL;
 	left = ASTAttachToken(ConsumeNextToken(Lexer, Lexer->mem_transient), Lexer->mem_transient);
 
 	while (true)
 	{
 		node = ParseIncreasingPrecedence(Lexer, left, min_prec);
-		// FIX: Input like "1 + " segfaults here, "1 +" doesnt so that is the issue
-		// Possible fix is just not letting the space be there by parsing but that sounds
-		// like ducktape over a gunshot wound
-		if (node && (node->Token->id == left->Token->id)) break ;
 		if (Lexer->flags & LEXER_FINISHED) break ;
+		if (node && (node->Token->id == left->Token->id)) break ;
 		left = node;
 	}
 	return (node);
@@ -435,7 +441,7 @@ Solver(AST *root, program_memory *mem)
 	}
 
 	// 1 + _
-	if (root->Token->type < T_EXPRESSION && (!root->left || !root->right)) {
+	if (root->Token->type < T_EXPRESSION && (!root->left->Token || !root->right->Token)) {
 		return SolverPartialTreeWithOp(root, sol, mem);
 	}
 
@@ -466,13 +472,18 @@ ParseFull(lexer *Lexer)
 	char	*output = 0;
 
 	Lexer->tree = ParseExpression(Lexer, 0);
-	sol_token = *Solver(Lexer->tree, Lexer->mem_transient)->Token;
-	Solution.int_solution = sol_token.integer_value;
-	Solution.float_32_solution = sol_token.float_32_value;
-	if (sol_token.type == T_FLOAT)
-		printf("%.2f\n", Solution.float_32_solution);
-	else
-		printf("%ld\n", Solution.int_solution);
+	if (!(Lexer->flags & LEXER_SYNTAX_ERROR))
+	{
+		sol_token = *Solver(Lexer->tree, Lexer->mem_transient)->Token;
+		Solution.int_solution = sol_token.integer_value;
+		Solution.float_32_solution = sol_token.float_32_value;
+		if (sol_token.type == T_FLOAT)
+			printf("%.2f\n", Solution.float_32_solution);
+		else
+			printf("%ld\n", Solution.int_solution);
+	} else {
+		printf("Syntax error\n");
+	}
 	return (output);
 }
 
@@ -496,8 +507,10 @@ ENTRY_POINT(calc)
 	// fgets(Lexer->input, 512, stdin);
 	// Lexer->input[strlen(Lexer->input) - 1] = 0;
 
+	// TODO: Make commands be called only after something like ':'
 	if (ProccessCommand(calc_data, Lexer->input))
 		return (calc_data->shouldClose);
+
 	// Assert(calc_data->in_index < 512);
 	//
 	// if (ch == '\n')

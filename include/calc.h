@@ -108,7 +108,8 @@ typedef struct token_stack
 	token_info	token_stack[32];
 }	token_stack;
 
-#define LEXER_FINISHED	(1 << 31)
+#define LEXER_FINISHED		(1 << 31)
+#define LEXER_SYNTAX_ERROR	(1 << 30)
 
 typedef struct lexer
 {
