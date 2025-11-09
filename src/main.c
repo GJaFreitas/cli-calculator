@@ -96,12 +96,8 @@ LocalAlloc(program_memory *mem, uint64 size)
 
 int	main(int argc, char **argv)
 {
-	if (argc < 2)
-	{
-		printf("No argv\n");
-		return 1;
-	}
 	(void)argv;
+	(void)argc;
 	int	shouldClose = 0;
 	hotcode	code;
 
@@ -130,12 +126,12 @@ int	main(int argc, char **argv)
 
 
 	// For unit tests
-	strcpy(Lexer.input, argv[1]);
+	// strcpy(Lexer.input, argv[1]);
 
-	// initscr();
-	// raw();
-	// noecho();
-	// keypad(stdscr, TRUE);
+	initscr();
+	raw();
+	noecho();
+	keypad(stdscr, TRUE);
 
 	while (!shouldClose)
 	{

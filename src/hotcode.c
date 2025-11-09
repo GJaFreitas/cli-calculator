@@ -472,6 +472,7 @@ ParseFull(lexer *Lexer)
 	char	*output = 0;
 
 	Lexer->tree = ParseExpression(Lexer, 0);
+	// TODO: Make this write to output buffer
 	if (!(Lexer->flags & LEXER_SYNTAX_ERROR))
 	{
 		sol_token = *Solver(Lexer->tree, Lexer->mem_transient)->Token;
@@ -495,6 +496,9 @@ ProccessCommand(data *calc_data, char *str)
 		calc_data->shouldClose = 1;
 	return (calc_data->shouldClose);
 
+	// TODO: Finish this function
+	// 	 Decide how its going to look in the end 
+	//
 	// calc_data->row += 2;
 
 	// while (calc_data->in_index)
@@ -504,35 +508,36 @@ ProccessCommand(data *calc_data, char *str)
 ENTRY_POINT(calc)
 {
 
-	// fgets(Lexer->input, 512, stdin);
-	// Lexer->input[strlen(Lexer->input) - 1] = 0;
+	fgets(Lexer->input, 512, stdin);
+
+	// Remove \n at the end
+	Lexer->input[strlen(Lexer->input) - 1] = 0;
 
 	// TODO: Make commands be called only after something like ':'
 	if (ProccessCommand(calc_data, Lexer->input))
 		return (calc_data->shouldClose);
 
-	// Assert(calc_data->in_index < 512);
-	//
-	// if (ch == '\n')
-	// 	ADD_FLAG(calc_data->flags, ENTER_HIT);
-	// else if (ch == '')
-	// {
-	// 	if (calc_data->in_index > 0)
-	// 		calc_data->in_index--;
-	// 	calc_data->in_buffer[calc_data->in_index] = ' ';
-	// }
-	// else
-	// 	calc_data->in_buffer[calc_data->in_index++] = ch;
+	Assert(calc_data->in_index < 512);
+
+	if (ch == '\n')
+		ADD_FLAG(calc_data->flags, ENTER_HIT);
+	else if (ch == '')
+	{
+		if (calc_data->in_index > 0)
+			calc_data->in_index--;
+		calc_data->in_buffer[calc_data->in_index] = ' ';
+	}
+	else
+		calc_data->in_buffer[calc_data->in_index++] = ch;
 
 	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
 
 	calc_data->out_buffer = ParseFull(Lexer);
 	calc_data->shouldClose = 1;
-	// print_tree(Lexer->tree);
 
 	// if (calc_data->flags & ENTER_HIT) ProccessCommand(calc_data);
 
-	// refresh();
+	refresh();
 	// move(calc_data->row, calc_data->in_index);
 	return (calc_data->shouldClose);
 }
