@@ -32,7 +32,7 @@ typedef struct
 	bool		isValid;
 }	hotcode;
 
-ENTRY_POINT(entry_point_stub) { (void)calc_data; (void)Lexer; return 1; };
+ENTRY_POINT(entry_point_stub) { (void)calc_data; (void)lexer; return 1; };
 
 internal time_t
 LastModified(const char *filepath)
@@ -78,7 +78,7 @@ LoadCode(void)
 }
 
 void	*
-LocalAlloc(program_memory *mem, uint64 size)
+LocalAlloc(ProgramMemory *mem, uint64 size)
 {
 	void	*ptr = NULL;
 
@@ -101,14 +101,14 @@ int	main(int argc, char **argv)
 	int	shouldClose = 0;
 	hotcode	code;
 
-	static lexer		Lexer;
-	static data		Data;
+	static Data		Data;
+	static Lexer		lexer;
 
-	local_persist program_memory	perm_mem;
-	local_persist program_memory	transient_mem;
+	local_persist ProgramMemory	perm_mem;
+	local_persist ProgramMemory	transient_mem;
 
-	Lexer.mem_transient = &transient_mem;
-	Lexer.mem_permanent = &perm_mem;
+	lexer.mem_transient = &transient_mem;
+	lexer.mem_permanent = &perm_mem;
 	Data.mem_transient = &transient_mem;
 	Data.mem_permanent = &perm_mem;
 
@@ -122,11 +122,11 @@ int	main(int argc, char **argv)
 
 	Data.in_buffer = LocalAlloc(Data.mem_permanent, 512);
 	Data.out_buffer = LocalAlloc(Data.mem_permanent, 512);
-	Lexer.input = Data.in_buffer;
+	lexer.input = Data.in_buffer;
 
 
 	// For unit tests
-	// strcpy(Lexer.input, argv[1]);
+	// strcpy(lexer.input, argv[1]);
 
 	initscr();
 	raw();
@@ -136,14 +136,14 @@ int	main(int argc, char **argv)
 	while (!shouldClose)
 	{
 		transient_mem.memory_use = 0;
-		Lexer.input = Data.in_buffer;
-		Lexer.mem_transient = &transient_mem;
-		Lexer.mem_permanent = &perm_mem;
+		lexer.input = Data.in_buffer;
+		lexer.mem_transient = &transient_mem;
+		lexer.mem_permanent = &perm_mem;
 		if (LastModified("./bin/hotcode.so") != code.lastModified)
 			code = LoadCode();
-		shouldClose = code.calc_func(&Data, &Lexer);
+		shouldClose = code.calc_func(&Data, &lexer);
 		if (!shouldClose)
-			memset(&Lexer, 0, sizeof(lexer));
+			memset(&lexer, 0, sizeof(lexer));
 	}
 
 	free(perm_mem.memory);

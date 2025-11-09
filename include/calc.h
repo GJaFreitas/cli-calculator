@@ -41,9 +41,9 @@ typedef struct
 	uint8	*memory;
 	uint64	memory_use;
 	uint64	memory_cap;
-}	program_memory;
+}	ProgramMemory;
 
-enum token_type
+enum TokenType
 {
 	T_OP_BIN,
 	T_OP_PLUSMINUS,
@@ -61,7 +61,7 @@ enum token_type
 typedef struct
 {
 	// NULL terminated strings
-	enum token_type	type;
+	enum TokenType	type;
 	union {
 
 		struct { uint32 size; uint8 *data; } str_value;
@@ -71,11 +71,11 @@ typedef struct
 	};
 	char	*token_string;
 	uint32	id;
-}	token;
+}	Token;
 
-static inline bool	OpToken(token *Token)
+static inline bool	OpToken(Token *token)
 {
-	return (Token->type < T_EXPRESSION);
+	return (token->type < T_EXPRESSION);
 }
 
 // NOTE: In reality i should just use floats everywhere
@@ -86,11 +86,11 @@ typedef union
 {
 	int64	int_solution;
 	real32	float_32_solution;
-}	solution;
+}	Solution;
 
 typedef struct AST
 {
-	token	*Token;
+	Token	*token;
 	struct AST	*left;
 	struct AST	*right;
 }	AST;
@@ -99,28 +99,28 @@ typedef struct AST
 typedef struct
 {
 	uint32	size;
-	token	*tok;
-}	token_info;
+	Token	*tok;
+}	TokenInfo;
 
-typedef struct token_stack
+typedef struct TokenStack
 {
 	uint32		stack_idx;
-	token_info	token_stack[32];
-}	token_stack;
+	TokenInfo	token_stack[32];
+}	TokenStack;
 
 #define LEXER_FINISHED		(1 << 31)
 #define LEXER_SYNTAX_ERROR	(1 << 30)
 
-typedef struct lexer
+typedef struct Lexer
 {
 	int32	flags;
 	uint32	index;
-	program_memory	*mem_permanent;
-	program_memory	*mem_transient;
+	ProgramMemory	*mem_permanent;
+	ProgramMemory	*mem_transient;
 	AST	*tree;
 	char	*input;
-	token_stack	peek;
-}	lexer;
+	TokenStack	peek;
+}	Lexer;
 
 #define ADD_FLAG(x, y)		((x) |= (y))
 #define REMOVE_FLAG(x, y)	((x) &= ~(y))
@@ -128,26 +128,21 @@ typedef struct lexer
 // User hit enter
 #define ENTER_HIT	(1 << 31)
 
-enum state
-{
-	BASE,
-};
-
-typedef struct command_list
+typedef struct PreviousInput 
 {
 	char	*command;
 	char	*result;
-	struct command_list	*next;
-	struct command_list	*prev;
-}	command_list;
+	struct PreviousInput	*next;
+	struct PreviousInput	*prev;
+}	PreviousInput;
 
 typedef struct
 {
-	program_memory	*mem_permanent;
-	program_memory	*mem_transient;
+	ProgramMemory	*mem_permanent;
+	ProgramMemory	*mem_transient;
 
-	command_list	*cmds_list;
-	command_list	*current;
+	PreviousInput	*cmds_list;
+	PreviousInput	*current;
 	uint32	row, col;
 	uint32	shouldClose;
 	char	*in_buffer;
@@ -155,11 +150,9 @@ typedef struct
 	char	*out_buffer;
 	uint16	out_index;
 
-	enum state	state;
-
 	uint32		flags;
 
-}	data;
+}	Data;
 
 inline internal bool	IsNum(uint8 c)
 {
@@ -186,7 +179,7 @@ inline internal uint32	NextMult8(uint32 num)
 	return ((num + 7) & ~7);
 }
 
-void	*LocalAlloc(program_memory *mem, uint64 size);
+void	*LocalAlloc(ProgramMemory *mem, uint64 size);
 
-#define ENTRY_POINT(name) int name(data *calc_data, lexer *Lexer)
+#define ENTRY_POINT(name) int name(Data *calc_data, Lexer *lexer)
 typedef ENTRY_POINT(entrypoint);

@@ -6,7 +6,7 @@
 
 
 void	*
-LocalAlloc(program_memory *mem, uint64 size)
+LocalAlloc(ProgramMemory *mem, uint64 size)
 {
 	void	*ptr = NULL;
 
@@ -23,7 +23,7 @@ LocalAlloc(program_memory *mem, uint64 size)
 }
 
 inline internal char *
-GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch)
+GetNumber(const char *stream_ptr, uint32 *index, ProgramMemory *scratch)
 {
 	uint32	size = 0;
 	uint32	rounded_size;
@@ -38,7 +38,7 @@ GetNumber(const char *stream_ptr, uint32 *index, program_memory *scratch)
 	return (token_content);
 }
 
-inline internal enum token_type
+inline internal enum TokenType
 GetOperatorType(char cur)
 {
 	switch (cur) {
@@ -53,47 +53,47 @@ GetOperatorType(char cur)
 	return (T_UNKNONW);
 }
 
-internal token *
-_NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
+internal Token *
+_NextToken(Lexer *lexer, ProgramMemory *scratch, uint32 *token_size)
 {
-	token	*Token;
-	uint32	idx = Lexer->index;
+	Token	*token;
+	uint32	idx = lexer->index;
 
-	Token = LocalAlloc(scratch, sizeof(token));
+	token = LocalAlloc(scratch, sizeof(Token));
 
-	while (IsSpace(Lexer->input[idx])) (idx)++;
-	if (Lexer->input[idx] == 0) return NULL;
+	while (IsSpace(lexer->input[idx])) (idx)++;
+	if (lexer->input[idx] == 0) return NULL;
 
-	char	cur = Lexer->input[idx];
+	char	cur = lexer->input[idx];
 	if (IsNum(cur))
 	{
-		Token->token_string = GetNumber(Lexer->input, &idx, scratch);
+		token->token_string = GetNumber(lexer->input, &idx, scratch);
 		// TODO: Of course this is wrong and has to be handled better
-		Token->integer_value = atoi(Token->token_string);
+		token->integer_value = atoi(token->token_string);
 		// ----------------------------------------------------------
-		switch (Lexer->input[idx])
+		switch (lexer->input[idx])
 		{
-			case 'b': Token->type = T_INTEGER_BIN; break;
-			case 'h': Token->type = T_INTEGER_HEX; break;
+			case 'b': token->type = T_INTEGER_BIN; break;
+			case 'h': token->type = T_INTEGER_HEX; break;
 
-			default: Token->type = T_INTEGER; break;
+			default: token->type = T_INTEGER; break;
 		}
 	}
 	else if (IsOperator(cur))
 	{
-		if (cur == '*' && Lexer->input[idx + 1] == '*') {
+		if (cur == '*' && lexer->input[idx + 1] == '*') {
 			cur = '$'; // Using this for exponentiation
 			idx++;
 		}
-		if (IsOperator(Lexer->input[idx + 1]))
+		if (IsOperator(lexer->input[idx + 1]))
 		{
-			ADD_FLAG(Lexer->flags, LEXER_SYNTAX_ERROR);
+			ADD_FLAG(lexer->flags, LEXER_SYNTAX_ERROR);
 			return (NULL);
 		}
-		Token->type = GetOperatorType(cur);
-		Token->token_string = LocalAlloc(scratch, 1 + 1);
-		Token->token_string[0] = cur;
-		Token->token_string[1] = 0;
+		token->type = GetOperatorType(cur);
+		token->token_string = LocalAlloc(scratch, 1 + 1);
+		token->token_string[0] = cur;
+		token->token_string[1] = 0;
 		(idx)++;
 	}
 	else if (IsChar(cur))
@@ -105,67 +105,67 @@ _NextToken(lexer *Lexer, program_memory *scratch, uint32 *token_size)
 		return (NULL);
 	}
 
-	Token->id = idx;
-	*token_size = idx - Lexer->index;
-	Assert(idx != Lexer->index);
+	token->id = idx;
+	*token_size = idx - lexer->index;
+	Assert(idx != lexer->index);
 
-	return (Token);
+	return (token);
 }
 
-internal token *
-PeekNextToken(lexer *Lexer, program_memory *mem)
+internal Token *
+PeekNextToken(Lexer *lexer, ProgramMemory *mem)
 {
-	token_info	stack_entry;
+	TokenInfo	stack_entry;
 	uint32	token_size;
-	token	*tok;
+	Token	*tok;
 
-	tok = _NextToken(Lexer, mem, &token_size);
+	tok = _NextToken(lexer, mem, &token_size);
 	if (tok == NULL) return NULL;
-	Lexer->index += token_size;
+	lexer->index += token_size;
 	stack_entry.tok = tok;
 	stack_entry.size = token_size;
-	Lexer->peek.token_stack[Lexer->peek.stack_idx] = stack_entry;
-	Lexer->peek.stack_idx++;
+	lexer->peek.token_stack[lexer->peek.stack_idx] = stack_entry;
+	lexer->peek.stack_idx++;
 	return (tok);
 }
 
-internal token *
-ConsumePeekedToken(lexer *Lexer)
+internal Token *
+ConsumePeekedToken(Lexer *lexer)
 {
-	token	*tok;
+	Token	*tok;
 	// NOTE: Of course the stack idx is pointing to the next unused stack entry
-	int32	index = Lexer->peek.stack_idx - 1;
+	int32	index = lexer->peek.stack_idx - 1;
 	
-	tok = Lexer->peek.token_stack[index].tok;
-	Lexer->peek.stack_idx--;
+	tok = lexer->peek.token_stack[index].tok;
+	lexer->peek.stack_idx--;
 	return (tok);
 }
 
-internal token *
-ConsumeNextToken(lexer *Lexer, program_memory *mem)
+internal Token *
+ConsumeNextToken(Lexer *lexer, ProgramMemory *mem)
 {
-	token	*tok;
+	Token	*tok;
 	uint32	token_size;
 
-	tok = _NextToken(Lexer, mem, &token_size);
-	Lexer->index += token_size;
+	tok = _NextToken(lexer, mem, &token_size);
+	lexer->index += token_size;
 	return (tok);
 }
 
 inline internal AST *
-ASTAttachToken(token *Token, program_memory *mem_arena)
+ASTAttachToken(Token *token, ProgramMemory *mem_arena)
 {
 	AST	*node;
 
 	node = LocalAlloc(mem_arena, sizeof(AST));
-	node->Token = Token;
+	node->token = token;
 	return (node);
 }
 
 global_var uint8	precedence_table[] = {'+', '-', '*', '/', '$'};
 
 inline internal uint32
-GetPrecedence(token *tok)
+GetPrecedence(Token *tok)
 {
 	char	operator = tok->token_string[0];
 	int i = 0;
@@ -183,59 +183,59 @@ MakeBinaryTree(AST *left, AST *op, AST *right)
 	return (op);
 }
 
-internal AST * ParseExpression(lexer *Lexer, uint32 min_prec);
+internal AST * ParseExpression(Lexer *lexer, uint32 min_prec);
 
 internal AST *
-ParseIncreasingPrecedence(lexer *Lexer, AST *left, uint32 min_prec)
+ParseIncreasingPrecedence(Lexer *lexer, AST *left, uint32 min_prec)
 {
-	token	*next = PeekNextToken(Lexer, Lexer->mem_transient);
+	Token	*next = PeekNextToken(lexer, lexer->mem_transient);
 
-	if (next == NULL || (Lexer->flags & LEXER_SYNTAX_ERROR))
+	if (next == NULL || (lexer->flags & LEXER_SYNTAX_ERROR))
 	{
-		ADD_FLAG(Lexer->flags, LEXER_FINISHED);
+		ADD_FLAG(lexer->flags, LEXER_FINISHED);
 		return (left);
 	}
 	uint32	next_prec = GetPrecedence(next);
 
 	if (next_prec < min_prec)
 	{
-		Lexer->index -= Lexer->peek.token_stack[Lexer->peek.stack_idx - 1].size;
-		Lexer->peek.stack_idx--;
+		lexer->index -= lexer->peek.token_stack[lexer->peek.stack_idx - 1].size;
+		lexer->peek.stack_idx--;
 		return left;
 	} else {
-		AST *right = ParseExpression(Lexer, next_prec);
+		AST *right = ParseExpression(lexer, next_prec);
 		return MakeBinaryTree(
 			left,
-			ASTAttachToken(ConsumePeekedToken(Lexer), Lexer->mem_transient),
+			ASTAttachToken(ConsumePeekedToken(lexer), lexer->mem_transient),
 			right
 		);
 	}
 }
 
 internal AST *
-ParseExpression(lexer *Lexer, uint32 min_prec)
+ParseExpression(Lexer *lexer, uint32 min_prec)
 {
 	AST	*node;
 	AST	*left;
 
-	if (Lexer->flags & LEXER_FINISHED)
+	if (lexer->flags & LEXER_FINISHED)
 		return NULL;
-	left = ASTAttachToken(ConsumeNextToken(Lexer, Lexer->mem_transient), Lexer->mem_transient);
+	left = ASTAttachToken(ConsumeNextToken(lexer, lexer->mem_transient), lexer->mem_transient);
 
 	while (true)
 	{
-		node = ParseIncreasingPrecedence(Lexer, left, min_prec);
-		if (Lexer->flags & LEXER_FINISHED) break ;
-		if (node && (node->Token->id == left->Token->id)) break ;
+		node = ParseIncreasingPrecedence(lexer, left, min_prec);
+		if (lexer->flags & LEXER_FINISHED) break ;
+		if (node && (node->token->id == left->token->id)) break ;
 		left = node;
 	}
 	return (node);
 }
 
-inline internal solution
-BinaryOperation(char op, token *l, token *r)
+inline internal Solution
+BinaryOperation(char op, Token *l, Token *r)
 {
-	solution sol;
+	Solution sol;
 	switch (l->type)
 	{
 		default:
@@ -264,10 +264,10 @@ BinaryOperation(char op, token *l, token *r)
 	return (sol);
 }
 
-inline internal solution
-PlusMinus(char op, token *l, token *r)
+inline internal Solution
+PlusMinus(char op, Token *l, Token *r)
 {
-	solution sol;
+	Solution sol;
 	switch (l->type)
 	{
 		default:
@@ -294,10 +294,10 @@ PlusMinus(char op, token *l, token *r)
 	return (sol);
 }
 
-inline internal solution
-MulDiv(char op, token *l, token *r)
+inline internal Solution
+MulDiv(char op, Token *l, Token *r)
 {
-	solution sol;
+	Solution sol;
 	switch (l->type)
 	{
 		// NOTE: Since division doesnt guarantee an int return division also poisons all
@@ -319,10 +319,10 @@ MulDiv(char op, token *l, token *r)
 }
 
 // TODO: This function is giving the wrong output
-inline internal solution
-Exponential(token *l, token *r)
+inline internal Solution
+Exponential(Token *l, Token *r)
 {
-	solution sol;
+	Solution sol;
 	switch (l->type)
 	{
 		default: 
@@ -351,11 +351,11 @@ Exponential(token *l, token *r)
 	return (sol);
 }
 
-internal token
-DoOperation(token *op, token *l, token *r)
+internal Token
+DoOperation(Token *op, Token *l, Token *r)
 {
-	token		result;
-	solution	sol;
+	Token		result;
+	Solution	sol;
 
 	if (l->type == T_FLOAT || r->type == T_FLOAT || op->token_string[0] == '/')
 	{
@@ -371,7 +371,7 @@ DoOperation(token *op, token *l, token *r)
 		case T_OP_PLUSMINUS: sol = PlusMinus(op->token_string[0], l, r); break ;
 		case T_OP_MULTDIVIDE: sol = MulDiv(op->token_string[0], l, r); break ;
 		case T_OP_EXPONENTIAL: sol = Exponential(l, r); break ;
-		default: sol = (solution){.int_solution = 0};
+		default: sol = (Solution){.int_solution = 0};
 	}
 	result.type = l->type;
 	if (result.type == T_FLOAT) result.float_32_value = sol.float_32_solution;
@@ -381,45 +381,45 @@ DoOperation(token *op, token *l, token *r)
 }
 
 inline internal AST *
-SolverPartialTreeNoOp(AST *root, token *sol, program_memory *mem)
+SolverPartialTreeNoOp(AST *root, Token *sol, ProgramMemory *mem)
 {
-	switch (root->Token->type)
+	switch (root->token->type)
 	{
-		case T_FLOAT: sol->float_32_value = root->Token->float_32_value;
+		case T_FLOAT: sol->float_32_value = root->token->float_32_value;
 			break ;
-		default : sol->integer_value = root->Token->integer_value;
+		default : sol->integer_value = root->token->integer_value;
 	}
-	sol->type = root->Token->type;
+	sol->type = root->token->type;
 	return (ASTAttachToken(sol, mem));
 }
 
-internal AST * Solver(AST *root, program_memory *mem);
+internal AST * Solver(AST *root, ProgramMemory *mem);
 
 inline internal AST *
-SolverPartialTreeWithOp(AST *root, token *sol, program_memory *mem)
+SolverPartialTreeWithOp(AST *root, Token *sol, ProgramMemory *mem)
 {
 	if (root->left)
 	{
-		if (root->left->Token->type < T_EXPRESSION)
+		if (root->left->token->type < T_EXPRESSION)
 			return (Solver(root->left, mem));
-		switch (root->left->Token->type)
+		switch (root->left->token->type)
 		{
-			case T_FLOAT: sol->float_32_value = root->left->Token->float_32_value;
+			case T_FLOAT: sol->float_32_value = root->left->token->float_32_value;
 				break ;
-			default : sol->integer_value = root->left->Token->integer_value;
+			default : sol->integer_value = root->left->token->integer_value;
 		}
-		sol->type = root->left->Token->type;
+		sol->type = root->left->token->type;
 		return (ASTAttachToken(sol, mem));
 	} else {
-		if (root->right->Token->type < T_EXPRESSION)
+		if (root->right->token->type < T_EXPRESSION)
 			return (Solver(root->right, mem));
-		switch (root->right->Token->type)
+		switch (root->right->token->type)
 		{
-			case T_FLOAT: sol->float_32_value = root->right->Token->float_32_value;
+			case T_FLOAT: sol->float_32_value = root->right->token->float_32_value;
 				break ;
-			default : sol->integer_value = root->right->Token->integer_value;
+			default : sol->integer_value = root->right->token->integer_value;
 		}
-		sol->type = root->right->Token->type;
+		sol->type = root->right->token->type;
 		return (ASTAttachToken(sol, mem));
 	}
 }
@@ -428,54 +428,54 @@ SolverPartialTreeWithOp(AST *root, token *sol, program_memory *mem)
 inline internal bool
 SolverBaseCase(AST *node)
 {
-	return (!OpToken(node->left->Token) && !OpToken(node->right->Token));
+	return (!OpToken(node->left->token) && !OpToken(node->right->token));
 }
 
 internal AST *
-Solver(AST *root, program_memory *mem)
+Solver(AST *root, ProgramMemory *mem)
 {
-	token	*sol = LocalAlloc(mem, sizeof(token));
+	Token	*sol = LocalAlloc(mem, sizeof(Token));
 
-	if (root->Token->type > T_EXPRESSION) {
+	if (root->token->type > T_EXPRESSION) {
 		return SolverPartialTreeNoOp(root, sol, mem);
 	}
 
 	// 1 + _
-	if (root->Token->type < T_EXPRESSION && (!root->left->Token || !root->right->Token)) {
+	if (root->token->type < T_EXPRESSION && (!root->left->token || !root->right->token)) {
 		return SolverPartialTreeWithOp(root, sol, mem);
 	}
 
 	if (SolverBaseCase(root))
 	{
 		*sol = DoOperation(
-			root->Token,
-			root->left->Token,
-			root->right->Token
+			root->token,
+			root->left->token,
+			root->right->token
 		);
 		return (ASTAttachToken(sol, mem));
 	}
 
 	// HACK: Clear memory leak here but its okay because arena allocator resets
-	if (root->left->Token->type < T_EXPRESSION)
+	if (root->left->token->type < T_EXPRESSION)
 		root->left = Solver(root->left, mem);
-	if (root->right->Token->type < T_EXPRESSION)
+	if (root->right->token->type < T_EXPRESSION)
 		root->right = Solver(root->right, mem);
-	*sol = DoOperation(root->Token, root->left->Token, root->right->Token);
+	*sol = DoOperation(root->token, root->left->token, root->right->token);
 	return (ASTAttachToken(sol, mem));
 }
 
 internal char *
-ParseFull(lexer *Lexer)
+ParseFull(Lexer *lexer)
 {
-	solution	Solution;
-	token		sol_token;
+	Solution	Solution;
+	Token		sol_token;
 	char	*output = 0;
 
-	Lexer->tree = ParseExpression(Lexer, 0);
+	lexer->tree = ParseExpression(lexer, 0);
 	// TODO: Make this write to output buffer
-	if (!(Lexer->flags & LEXER_SYNTAX_ERROR))
+	if (!(lexer->flags & LEXER_SYNTAX_ERROR))
 	{
-		sol_token = *Solver(Lexer->tree, Lexer->mem_transient)->Token;
+		sol_token = *Solver(lexer->tree, lexer->mem_transient)->token;
 		Solution.int_solution = sol_token.integer_value;
 		Solution.float_32_solution = sol_token.float_32_value;
 		if (sol_token.type == T_FLOAT)
@@ -489,7 +489,7 @@ ParseFull(lexer *Lexer)
 }
 
 internal int32
-ProccessCommand(data *calc_data, char *str)
+ProccessCommand(Data *calc_data, char *str)
 {
 	REMOVE_FLAG(calc_data->flags, ENTER_HIT);
 	if (!strncmp(str, "quit", 4))
@@ -505,34 +505,37 @@ ProccessCommand(data *calc_data, char *str)
 	// 	calc_data->in_buffer[--calc_data->in_index] = 0;
 }
 
+internal inline void
+ProccessChar(Lexer *lexer, Data *calc)
+{
+	char	ch;
+
+	ch = getch();
+
+	if (ch == '\n')
+		ADD_FLAG(calc->flags, ENTER_HIT);
+	else if (ch == '')
+	{
+		if (calc->in_index > 0)
+			calc->in_index--;
+		calc->in_buffer[calc->in_index] = ' ';
+	}
+	else
+		calc->in_buffer[calc->in_index++] = ch;
+}
+
 ENTRY_POINT(calc)
 {
-
-	fgets(Lexer->input, 512, stdin);
-
-	// Remove \n at the end
-	Lexer->input[strlen(Lexer->input) - 1] = 0;
-
 	// TODO: Make commands be called only after something like ':'
-	if (ProccessCommand(calc_data, Lexer->input))
+	if (ProccessCommand(calc_data, lexer->input))
 		return (calc_data->shouldClose);
 
 	Assert(calc_data->in_index < 512);
 
-	if (ch == '\n')
-		ADD_FLAG(calc_data->flags, ENTER_HIT);
-	else if (ch == '')
-	{
-		if (calc_data->in_index > 0)
-			calc_data->in_index--;
-		calc_data->in_buffer[calc_data->in_index] = ' ';
-	}
-	else
-		calc_data->in_buffer[calc_data->in_index++] = ch;
 
 	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
 
-	calc_data->out_buffer = ParseFull(Lexer);
+	calc_data->out_buffer = ParseFull(lexer);
 	calc_data->shouldClose = 1;
 
 	// if (calc_data->flags & ENTER_HIT) ProccessCommand(calc_data);
