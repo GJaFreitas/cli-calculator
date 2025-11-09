@@ -108,9 +108,6 @@ typedef struct TokenStack
 	TokenInfo	token_stack[32];
 }	TokenStack;
 
-#define LEXER_FINISHED		(1 << 31)
-#define LEXER_SYNTAX_ERROR	(1 << 30)
-
 typedef struct Lexer
 {
 	int32	flags;
@@ -122,12 +119,6 @@ typedef struct Lexer
 	TokenStack	peek;
 }	Lexer;
 
-#define ADD_FLAG(x, y)		((x) |= (y))
-#define REMOVE_FLAG(x, y)	((x) &= ~(y))
-
-// User hit enter
-#define ENTER_HIT	(1 << 31)
-
 typedef struct PreviousInput 
 {
 	char	*command;
@@ -136,6 +127,13 @@ typedef struct PreviousInput
 	struct PreviousInput	*prev;
 }	PreviousInput;
 
+enum CliState
+{
+	INSERT = 0,
+	NORMAL,
+	COMMAND
+};
+
 typedef struct
 {
 	ProgramMemory	*mem_permanent;
@@ -143,13 +141,19 @@ typedef struct
 
 	PreviousInput	*cmds_list;
 	PreviousInput	*current;
+
 	uint32	row, col;
 	uint32	shouldClose;
-	char	*in_buffer;
-	uint16	in_index;
-	char	*out_buffer;
-	uint16	out_index;
 
+	char	*in_buffer;
+	char	*out_buffer;
+	uint32	in_index;
+	uint32	out_index;
+
+	char	*command_buffer;
+	uint32	command_index;
+
+	enum CliState	state;
 	uint32		flags;
 
 }	Data;
@@ -178,6 +182,18 @@ inline internal uint32	NextMult8(uint32 num)
 {
 	return ((num + 7) & ~7);
 }
+
+#define ADD_FLAG(x, y)		((x) |= (y))
+#define REMOVE_FLAG(x, y)	((x) &= ~(y))
+
+// ── CLI FLAGS ───────────────────────────────────────────────────────
+#define TOGGLE_COMMAND	(1 << 31)
+// ────────────────────────────────────────────────────────────────────
+
+// ── LEXER FLAGS ─────────────────────────────────────────────────────
+#define LEXER_FINISHED		(1 << 31)
+#define LEXER_SYNTAX_ERROR	(1 << 30)
+// ────────────────────────────────────────────────────────────────────
 
 void	*LocalAlloc(ProgramMemory *mem, uint64 size);
 

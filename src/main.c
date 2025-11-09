@@ -112,21 +112,18 @@ int	main(int argc, char **argv)
 	Data.mem_transient = &transient_mem;
 	Data.mem_permanent = &perm_mem;
 
-	perm_mem.memory_cap = sysconf(_SC_PAGESIZE) * 2;
+	perm_mem.memory_cap = sysconf(_SC_PAGESIZE);
 	perm_mem.memory_use = 0;
 	perm_mem.memory = (uint8 *) aligned_alloc(sysconf(_SC_PAGESIZE), perm_mem.memory_cap);
 
-	transient_mem.memory_cap = sysconf(_SC_PAGESIZE);
+	transient_mem.memory_cap = sysconf(_SC_PAGESIZE) * 2;
 	transient_mem.memory_use = 0;
 	transient_mem.memory = (uint8 *) aligned_alloc(sysconf(_SC_PAGESIZE), transient_mem.memory_cap);
 
 	Data.in_buffer = LocalAlloc(Data.mem_permanent, 512);
 	Data.out_buffer = LocalAlloc(Data.mem_permanent, 512);
+	Data.command_buffer = LocalAlloc(Data.mem_permanent, 512);
 	lexer.input = Data.in_buffer;
-
-
-	// For unit tests
-	// strcpy(lexer.input, argv[1]);
 
 	initscr();
 	raw();

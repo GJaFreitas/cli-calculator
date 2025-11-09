@@ -488,57 +488,76 @@ ParseFull(Lexer *lexer)
 	return (output);
 }
 
-internal int32
-ProccessCommand(Data *calc_data, char *str)
+internal void
+ProccessInput(Data *data)
 {
-	REMOVE_FLAG(calc_data->flags, ENTER_HIT);
-	if (!strncmp(str, "quit", 4))
-		calc_data->shouldClose = 1;
-	return (calc_data->shouldClose);
+	switch (data->state)
+	{
+		case COMMAND:
+			// TODO: If more commands are added this will have to be its own parser thing
+			if (!strncmp(data->command_buffer, "quit", data->command_index))
+				data->shouldClose = 1;
+			data->command_index = 0;
+		break;
 
-	// TODO: Finish this function
-	// 	 Decide how its going to look in the end 
-	//
-	// calc_data->row += 2;
-
-	// while (calc_data->in_index)
-	// 	calc_data->in_buffer[--calc_data->in_index] = 0;
+		case INSERT:
+			data->in_index = 0;
+		break;
+		
+		default: fprintf(stderr, "Something has clearly gone wrong\n"); exit(1);
+	}
 }
 
+
+// A cool idea here would be that while this function is called the tree builds itself,
+// waiting when necessary like every time ProccessChar() is called _NextToken() is called
+// and if returns a token then the tree changes and Solver() gets called again
+//
+// Im not going to do that
+
+
+// 
 internal inline void
-ProccessChar(Lexer *lexer, Data *calc)
+ProccessChar(Data *calc)
 {
 	char	ch;
 
 	ch = getch();
 
-	if (ch == '\n')
-		ADD_FLAG(calc->flags, ENTER_HIT);
-	else if (ch == '')
+	switch (ch)
 	{
-		if (calc->in_index > 0)
-			calc->in_index--;
-		calc->in_buffer[calc->in_index] = ' ';
+		case '\n':
+			ProccessInput(calc);
+		break;
+
+		case ':':
+			ADD_FLAG(calc->flags, TOGGLE_COMMAND);
+		break;
+
+		case '':
+			if (calc->in_index > 0)
+				calc->in_index--;
+			calc->in_buffer[calc->in_index] = ' ';
+		break ;
+
+		default:
+			if (calc->flags & TOGGLE_COMMAND)
+				calc->command_buffer[calc->command_index++] = ch;
+			else
+				calc->in_buffer[calc->in_index++] = ch;
+		break ;
 	}
-	else
-		calc->in_buffer[calc->in_index++] = ch;
 }
 
 ENTRY_POINT(calc)
 {
-	// TODO: Make commands be called only after something like ':'
-	if (ProccessCommand(calc_data, lexer->input))
-		return (calc_data->shouldClose);
-
+	ProccessChar(calc_data);
 	Assert(calc_data->in_index < 512);
 
 
 	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
 
 	calc_data->out_buffer = ParseFull(lexer);
-	calc_data->shouldClose = 1;
-
-	// if (calc_data->flags & ENTER_HIT) ProccessCommand(calc_data);
 
 	refresh();
 	// move(calc_data->row, calc_data->in_index);
