@@ -98,7 +98,8 @@ _NextToken(Lexer *lexer, ProgramMemory *scratch, uint32 *token_size)
 	}
 	else if (IsChar(cur))
 	{
-		Assert(!IsChar(cur));
+		ADD_FLAG(lexer->flags, LEXER_SYNTAX_ERROR);
+		return (NULL);
 	}
 	else
 	{
@@ -491,7 +492,7 @@ ParseFull(Lexer *lexer)
 internal void
 ProccessInput(Data *data)
 {
-	switch (data->state)
+	switch (data->mode)
 	{
 		case COMMAND:
 			// TODO: If more commands are added this will have to be its own parser thing
@@ -530,8 +531,15 @@ ProccessChar(Data *calc)
 			ProccessInput(calc);
 		break;
 
+		// command mode like in vim
 		case ':':
-			ADD_FLAG(calc->flags, TOGGLE_COMMAND);
+			if (calc->mode == NORMAL)
+				calc->mode = COMMAND;
+		break;
+
+		// ctrl+c goes to normal mode
+		case '':
+			calc->mode = NORMAL;
 		break;
 
 		case '':
@@ -554,6 +562,8 @@ ENTRY_POINT(calc)
 	ProccessChar(calc_data);
 	Assert(calc_data->in_index < 512);
 
+
+	// TODO: Have an indicator of the mode we are currently in
 
 	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
 

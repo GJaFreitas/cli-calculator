@@ -153,7 +153,7 @@ typedef struct
 	char	*command_buffer;
 	uint32	command_index;
 
-	enum CliState	state;
+	enum CliState	mode;
 	uint32		flags;
 
 }	Data;
