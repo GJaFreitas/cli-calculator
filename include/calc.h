@@ -197,5 +197,5 @@ inline internal uint32	NextMult8(uint32 num)
 
 void	*LocalAlloc(ProgramMemory *mem, uint64 size);
 
-#define ENTRY_POINT(name) int name(Data *calc_data, Lexer *lexer)
+#define ENTRY_POINT(name) int name(Data *data, Lexer *lexer)
 typedef ENTRY_POINT(entrypoint);

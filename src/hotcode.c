@@ -480,11 +480,11 @@ ParseFull(Lexer *lexer)
 		Solution.int_solution = sol_token.integer_value;
 		Solution.float_32_solution = sol_token.float_32_value;
 		if (sol_token.type == T_FLOAT)
-			printf("%.2f\n", Solution.float_32_solution);
+			mvwprintw(stdscr, 2, 0, "%.2f\n", Solution.float_32_solution);
 		else
-			printf("%ld\n", Solution.int_solution);
+			mvwprintw(stdscr, 2, 0, "%ld\n", Solution.int_solution);
 	} else {
-		printf("Syntax error\n");
+		mvwprintw(stdscr, 2, 0, "Syntax error\n");
 	}
 	return (output);
 }
@@ -502,6 +502,8 @@ ProccessInput(Data *data)
 		break;
 
 		case INSERT:
+			for (uint32 i = 0; i < data->in_index; i++)
+				data->in_buffer[i] = 0;
 			data->in_index = 0;
 		break;
 		
@@ -531,10 +533,8 @@ ProccessChar(Data *calc)
 			ProccessInput(calc);
 		break;
 
-		// command mode like in vim
-		case ':':
-			if (calc->mode == NORMAL)
-				calc->mode = COMMAND;
+		case '':
+			calc->shouldClose = 1;
 		break;
 
 		// ctrl+c goes to normal mode
@@ -542,10 +542,18 @@ ProccessChar(Data *calc)
 			calc->mode = NORMAL;
 		break;
 
+		// command mode like in vim
+		case ':':
+			if (calc->mode == NORMAL)
+				calc->mode = COMMAND;
+		break;
+
 		case '':
 			if (calc->in_index > 0)
+			{
 				calc->in_index--;
-			calc->in_buffer[calc->in_index] = ' ';
+				calc->in_buffer[calc->in_index] = ' ';
+			}
 		break ;
 
 		default:
@@ -557,19 +565,17 @@ ProccessChar(Data *calc)
 	}
 }
 
+// TODO: Have an indicator of the mode we are currently in
 ENTRY_POINT(calc)
 {
-	ProccessChar(calc_data);
-	Assert(calc_data->in_index < 512);
+	ProccessChar(data);
+	Assert(data->in_index < 512);
 
-
-	// TODO: Have an indicator of the mode we are currently in
-
-	// mvprintw(calc_data->row, 0, "%s", calc_data->in_buffer);
-
-	calc_data->out_buffer = ParseFull(lexer);
+	if (data->in_index && data->mode == INSERT)
+		data->out_buffer = ParseFull(lexer);
 
 	refresh();
-	// move(calc_data->row, calc_data->in_index);
-	return (calc_data->shouldClose);
+	mvwprintw(stdscr, 0, 0, "%s", data->in_buffer);
+	move(data->row, data->in_index);
+	return (data->shouldClose);
 }

@@ -32,7 +32,7 @@ typedef struct
 	bool		isValid;
 }	hotcode;
 
-ENTRY_POINT(entry_point_stub) { (void)calc_data; (void)lexer; return 1; };
+ENTRY_POINT(entry_point_stub) { (void)data; (void)lexer; return 1; };
 
 internal time_t
 LastModified(const char *filepath)
@@ -139,8 +139,7 @@ int	main(int argc, char **argv)
 		if (LastModified("./bin/hotcode.so") != code.lastModified)
 			code = LoadCode();
 		shouldClose = code.calc_func(&Data, &lexer);
-		if (!shouldClose)
-			memset(&lexer, 0, sizeof(lexer));
+		memset(&lexer, 0, sizeof(lexer));
 	}
 
 	free(perm_mem.memory);
